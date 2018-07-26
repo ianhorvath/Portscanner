@@ -1,0 +1,629 @@
+# Ian Horvath-Skan
+
+
+"""
+
+    This program is the amalgamation of seven weeks hard work scouring the internet and reaching
+    into dark corners which I had previously not explored. What lies ahead for execution before you
+    now is the most mighty of Python Port Scanners (I have ever created). I was lead down many a false
+    path to finally craft this piece of work.
+    But I come on a bent and humble knee as I understand there are many improvements which I will
+    make as I grow and develop in my scripting skills. To end this simply, it was not about the
+    project we chose in the class, but about building a skill set for troubleshooting and resilience
+    which is most important. I have learned this many times over, and in the words of the late Nelson Mandela
+    echoed in my ears during my journey...
+        "Do not judge me by my success, judge me by how many times I fell down and got back up again."
+
+"""
+
+#  Importing libraries used in the script
+from datetime import datetime
+import datetime
+import os
+from threading import Thread
+import socket
+import time
+import sys
+
+
+#  There are two types of scans described, basic_scan and custom_scan. Basic scan, iterates through all the ports
+#  of a targeted system, and allows for saving by .html or .txt.
+def basic_scan():
+    host = input('Enter host: ')  #Takes input from user
+    starting_time = time.time()  #For later reference on how long the scan took.
+    host_name = socket.gethostbyname(host)  #Resolves the IP of the host if it is a DNS domain.
+    print("Starting scan of " + host + " (" + host_name + ')')
+    print("Starting scan...")
+    counting_open = []  #Open list for storing the open ports found.
+    counting_close = []
+    threads = []
+
+# A list of common ports in a dictionary which will be reference later to make the results more readable
+    common_ports = {
+            '21': 'FTP',
+            '22': 'SSH',
+            '23': 'TELNET',
+            '25': 'SMTP',
+            '53': 'DNS',
+            '69': 'TFTP',
+            '80': 'HTTP',
+            '109': 'POP2',
+            '110': 'POP3',
+            '123': 'NTP',
+            '137': 'NETBIOS-NS',
+            '138': 'NETBIOS-DGM',
+            '139': 'NETBIOS-SSN',
+            '143': 'IMAP',
+            '156': 'SQL-SERVER',
+            '389': 'LDAP',
+            '443': 'HTTPS',
+            '546': 'DHCP-CLIENT',
+            '547': 'DHCP-SERVER',
+            '995': 'POP3-SSL',
+            '993': 'IMAP-SSL',
+            '2086': 'WHM/CPANEL',
+            '2087': 'WHM/CPANEL',
+            '2082': 'CPANEL',
+            '2083': 'CPANEL',
+            '3306': 'MYSQL',
+            '8443': 'PLESK',
+            '10000': 'VIRTUALMIN/WEBMIN'
+        }
+
+# A function to call to the dictionary and return if there is a common service associated with the open ports found.
+    def get_service(port):
+        port = str(port)
+        if port in common_ports:
+            return common_ports[port]
+        else:
+            return 0
+
+# A function which makes the connection with the Socket library, and starts looking for open ports. It also returns
+# the open ports in a string when it finds them in real time.
+    def scan(port):
+        try:
+            s = socket.socket()
+            result = s.connect_ex((host, port))
+            if result == 0:
+                counting_open.append(port)
+                print((str(port))+' port is open.')
+                s.close()
+            else:
+                counting_close.append(port)
+                s.close()
+        except KeyboardInterrupt:
+            print("You stopped the scan, by pressing Ctrl+C.")
+        except socket.gaierror:
+            print(host + ' could not be resolved. Exiting')
+            sys.exit()
+        except socket.error:
+            print("Couldn't connect to server, check connection to network")
+            sys.exit()
+
+# This for loop looks to iterate through all the ports possible on a target.
+    for i in range(1, 65535):
+        t = Thread(target=scan, args=(i,))
+        threads.append(t)
+        t.start()
+
+# After the scan has finished this records the time, and compares it against the starting time,
+# which gives the time taken to complete.
+    [x.join() for x in threads]
+    ending_time = time.time()
+    total_time = ending_time - starting_time
+    if total_time <= 60:
+        total_time = str(round(total_time, 2))
+        print("Scan Took %s seconds" % total_time)
+    else:
+        total_time = total_time / 60
+        print("Scan Took %s Minutes" % total_time)
+
+# This if, else statement looks to take all the open ports found, sorts them in descending order, then
+# returns the service associated with them in the common_ports dictionary.
+    if counting_open:
+        print("Open Ports: ")
+        for i in sorted(counting_open):
+            service = get_service(i)
+            if not service:
+                service = "Unknown service"
+            print("\t%s %s: Open" % (i, service))
+    else:
+        print("No open ports found.")
+
+
+# Defines one of two save functions in the script. The html_save will save a .html file which displays, and APPENDS
+# new results to so that they may be saved for later reference, in the current directory the script if run from.
+# It prints all the open ports, time taken to complete, services associated with the ports, and host IP.
+    def htmlsave():
+        f = open("HTML Results.html", "a+")
+        human_time = datetime.datetime.fromtimestamp(starting_time).strftime('%c')
+        f.write('''
+                <!DOCTYPE html>
+                <html lang="en"><head><meta charset="UTF-8">
+                <title>Horvath Port-a-palooza!</title>
+                <link href='https://fonts.googleapis.com/css?family=Abel' rel='stylesheet'>
+                <link href="py.css" rel="stylesheet">
+                </head>
+                ''')
+        f.write('<body>'
+                '<div class="outer">'
+                '<div class="bodyMain">'
+                '<h3>Scan Results</h3>'
+                '<p>Target: <a href=http://%s>%s</a> (%s) </p>'
+                '<p>Scan started: %s </p>' % (host, host, host_name, str(human_time)))
+        total_time = ending_time - starting_time
+        if total_time <= 60:
+            total_time = str(round(total_time, 2))
+            f.write("<p>Scan finished in: %s seconds.</p>" % total_time)
+        else:
+            total_time = total_time / 60
+            f.write("<p>Scan finished in: %s minutes.</p>" % total_time)
+        f.write('<p>Port range scanned: 1 - 65535</p>')
+        f_final = ', '.join(str(e) for e in counting_open)
+        f.write('<p>Open ports found: %s</p>' % f_final)
+        if counting_open:
+            f.write("<p><b>Port Services Identified</b></p> ")
+            for i in sorted(counting_open):
+                service = get_service(i)
+                if not service:
+                    service = "Unknown service"
+                f.write("\t<p>%s : %s</p>" % (i, service))
+        else:
+          f.write("<p>No open ports</p>")
+
+        f.write('</div></div></body></html>')
+        print("File HTML Results.html created inside: \n" + os.getcwd())
+
+
+# css_style function makes the .html file pretty and user friendly. This creates a .css file once no matter how many
+# the script is run, and is referenced in the .html file.
+    def css_style():
+        g = open("py.css", "w")
+        g.write('''
+        html {
+            height: 100%;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            background: Grey;
+            background: linear-gradient(0deg, grey, white);
+        }
+        div.outer {
+            margin: 0 auto;
+            padding: 100px; 
+        }
+        div.bodyMain {
+            border-radius: 10px; 
+            margin: 0 auto;
+            padding: 15px;
+            width: 300px;
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0,0,0, 0.19);
+            text-align: center;
+            color: Black;
+            background-color: White;
+            font-family: "Abel";
+        }
+        h3 {
+            color: Black;
+            text-align: center;
+            font-family: "Abel";
+        }
+        ''')
+
+
+# This function saves the same results described in the html_save function to a .txt file, which will be continually
+# updated so that there is a record of scans run and their results.
+    def results():
+        f = open("Results.txt", "a+")
+        print("File Results.txt created inside: \n" + os.getcwd())
+        f.write('\n\n')
+        f.write('*' * 30 + '\n')
+        f.write("   %s Results\n" % host)
+        f.write("*" * 30 + '\n')
+        f.write("You targeted " + host + "\nWhich has the IP address of: " + host_name + '\n')
+        f.write('Scan started: ' + datetime.datetime.fromtimestamp(starting_time).strftime('%c') + '\n')
+        total_time = ending_time - starting_time
+        if total_time <= 60:
+            total_time = str(round(total_time, 2))
+            f.write("Scan finished in: %s seconds.\n" % total_time)
+        else:
+            total_time = total_time / 60
+            f.write("Scan finished in: %s minutes.\n" % total_time)
+        f.write("Port range scanned 1 - 65535.\n")
+        f_final = ', '.join(str(e) for e in counting_open)
+        f.write('Open ports reported: %s\n' % f_final)
+        if counting_open:
+            f.write("Port Services Identified\n")
+            for i in sorted(counting_open):
+                service = get_service(i)
+                if not service:
+                    service = "Unknown service"
+                f.write("\t%s : %s\n" % (i, service))
+        else:
+            f.write("No open ports.\n\n")
+        f.close()
+
+
+# After the open ports have been port and are awaiting saving this menu appears and prompts the user to select one of
+# the following options, which in turn call out to the above functions for execution.
+    save_result = input("Save to:\n"
+                      "\t1. File\n"
+                      "\t2. HTML\n"
+                      "\t3. Both\n"
+                      "\t4. Menu\n")
+    if save_result== '1' or save_result== '1.' or save_result== 'File' or save_result== 'file' or save_result== '1. file' or save_result== '1. File':
+        results()
+        main_menu()
+    elif save_result== '2' or save_result== '2.' or save_result== 'HTML' or save_result== 'html' or save_result== '2. HTML' or save_result== '2. html':
+        css_style()
+        htmlsave()
+        main_menu()
+    elif save_result== '3' or save_result== '3.' or save_result== 'Both' or save_result== 'both' or save_result== '3. Both' or save_result=='3. both':
+        results()
+        css_style()
+        htmlsave()
+        main_menu()
+    elif save_result== '4' or save_result== '4.' or save_result== 'Menu' or save_result== 'menu' or save_result== '4. menu' or save_result== '4. Menu':
+        main_menu()
+    else:
+        print('Looks like an invalid entry, returning to menu.')
+        main_menu()
+
+
+# This is the second scan function in the script which allows for more control of the target and which ports to scan.
+# The user is able to specify a custom target, and which ports to seek if they are open.
+def customScan():
+    host = input('Enter host: ')
+    host_name = socket.gethostbyname(host)
+    start_port = int(input('Starting port: '))
+    end_port = int(input('Ending port: '))
+    starting_time = time.time()
+    print("Scanning " + host + " (" + host_name + ") ports " + str(start_port) + " to " + str(end_port))
+    counting_open = []
+    counting_close = []
+    threads = []
+
+# A list of common ports in a dictionary which will be reference later to make the results more readable
+    common_ports = {
+            '21': 'FTP',
+            '22': 'SSH',
+            '23': 'TELNET',
+            '25': 'SMTP',
+            '53': 'DNS',
+            '69': 'TFTP',
+            '80': 'HTTP',
+            '109': 'POP2',
+            '110': 'POP3',
+            '123': 'NTP',
+            '137': 'NETBIOS-NS',
+            '138': 'NETBIOS-DGM',
+            '139': 'NETBIOS-SSN',
+            '143': 'IMAP',
+            '156': 'SQL-SERVER',
+            '389': 'LDAP',
+            '443': 'HTTPS',
+            '546': 'DHCP-CLIENT',
+            '547': 'DHCP-SERVER',
+            '995': 'POP3-SSL',
+            '993': 'IMAP-SSL',
+            '2086': 'WHM/CPANEL',
+            '2087': 'WHM/CPANEL',
+            '2082': 'CPANEL',
+            '2083': 'CPANEL',
+            '3306': 'MYSQL',
+            '8443': 'PLESK',
+            '10000': 'VIRTUALMIN/WEBMIN'
+        }
+
+# A function to call to the dictionary and return if there is a common service associated with the open ports found.
+    def get_service(port):
+        port = str(port)
+        if port in common_ports:
+            return common_ports[port]
+        else:
+            return 0
+
+
+# A function which makes the connection with the Socket library, and starts looking for open ports. It also returns
+# the open ports in a string when it finds them in real time.
+    def scan(port):
+        try:
+            s = socket.socket()
+            result = s.connect_ex((host, port))
+            if result == 0:
+                counting_open.append(port)
+                print((str(port))+' port is open.')
+                s.close()
+            else:
+                counting_close.append(port)
+                s.close()
+        except KeyboardInterrupt:
+            print("You stopped the scan, by pressing Ctrl+C.")
+        except socket.gaierror:
+            print(host + ' could not be resolved. Exiting')
+            sys.exit()
+        except socket.error:
+            print("Couldn't connect to server, check connection to network")
+            sys.exit()
+
+# This for loop takes the input start and end ports as a reference for which to target.
+    for i in range(start_port, end_port+1):
+        t = Thread(target=scan, args=(i,))
+        threads.append(t)
+        t.start()
+
+# After the scan has finished this records the time, and compares it against the starting time,
+# which gives the time taken to complete.
+    [x.join() for x in threads]
+    ending_time = time.time()
+    total_time = ending_time - starting_time
+    if total_time <= 60:
+        total_time = str(round(total_time, 2))
+        print("Your scan took %s seconds" % total_time)
+    else:
+        total_time = total_time / 60
+        print("Your scan took %s Minutes" % total_time)
+
+# This if, else statement looks to take all the open ports found, sorts them in descending order, then
+# returns the service associated with them in the common_ports dictionary.
+    if counting_open:
+        print("Open Ports: ")
+        for i in sorted(counting_open):
+            service = get_service(i)
+            if not service:
+                service = "Unknown service"
+            print("\t%s %s: Open" % (i, service))
+    else:
+      print("Sorry, No open ports found.!!")
+
+# Defines one of two save functions in the script. The html_save will save a .html file which displays, and APPENDS
+# new results to so that they may be saved for later reference, in the current directory the script if run from.
+# It prints all the open ports, time taken to complete, services associated with the ports, and host IP.
+    def htmlsave():
+        f = open("HTML Results.html", "a+")
+        human_time = datetime.datetime.fromtimestamp(starting_time).strftime('%c')
+        f.write('''
+                <!DOCTYPE html>
+                <html lang="en"><head><meta charset="UTF-8">
+                <title>Horvath Port-a-palooza!</title>
+                <link href='https://fonts.googleapis.com/css?family=Abel' rel='stylesheet'>
+                <link href="py.css" rel="stylesheet">
+                </head>
+                ''')
+        f.write('<body>'
+                '<div class="outer">'
+                '<div class="bodyMain">'
+                '<h3>Scan Results</h3>'
+                '<p>Target: <a href=http://%s>%s</a> (%s) </p>'
+                '<p>Scan started: %s </p>' % (host, host, host_name, str(human_time)))
+        total_time = ending_time - starting_time
+        if total_time <= 60:
+            total_time = str(round(total_time, 2))
+            f.write("<p>Scan finished in: %s seconds.</p>" % total_time)
+        else:
+            total_time = total_time / 60
+            f.write("<p>Scan finished in: %s minutes.</p>" % total_time)
+        f.write('<p>Port range scanned: %s - %s</p>' % (start_port, end_port))
+        f_final = ', '.join(str(e) for e in counting_open)
+        f.write('<p>Open ports found: %s</p>' % f_final)
+        if counting_open: # There are open ports available
+            f.write("<p><b>Port Services Identified</b></p> ")
+            for i in sorted(counting_open):
+                service = get_service(i)
+                if not service:
+                    service = "Unknown service"
+                f.write("\t<p>%s : %s</p>" % (i, service))
+        else:
+            f.write("<p>No open ports</p>")
+
+        f.write('</div></div></body></html>')
+        print("File HTML Results.html created inside: \n" + os.getcwd())
+
+
+# css_style function makes the .html file pretty and user friendly. This creates a .css file once no matter how many
+# the script is run, and is referenced in the .html file.
+    def css_style():
+        g = open("py.css", "w")
+        g.write('''
+        html {
+            height: 100%;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+            background: Grey;
+            background: linear-gradient(0deg, grey, white);
+        }
+        div.outer {
+            margin: 0 auto;
+            padding: 100px; 
+        }
+        div.bodyMain {
+            border-radius: 10px; 
+            margin: 0 auto;
+            padding: 15px;
+            width: 300px;
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0,0,0, 0.19);
+            text-align: center;
+            color: Black;
+            background-color: White;
+            font-family: "Abel";
+        }
+        h3 {
+            color: Black;
+            text-align: center;
+            font-family: "Abel";
+        }
+        ''')
+
+
+# This function saves the same results described in the html_save function to a .txt file, which will be continually
+# updated so that there is a record of scans run and their results.
+    def results():
+        f = open("Results.txt", "a+")
+        print("File Results.txt created inside: \n" + os.getcwd())
+        f.write('\n\n')
+        f.write('*' * 30 + '\n')
+        f.write("   %s Results\n" % host)
+        f.write("*" * 30 + '\n')
+        f.write("You targeted " + host + "\nWhich has the IP address of: " + host_name + '\n')
+        f.write('Scan started: ' + datetime.datetime.fromtimestamp(starting_time).strftime('%c') + '\n')
+        total_time = ending_time - starting_time
+        if total_time <= 60:
+            total_time = str(round(total_time, 2))
+            f.write("Scan finished in: %s seconds.\n" % total_time)
+        else:
+            total_time = total_time / 60
+            f.write("Scan finished in: %s minutes.\n" % total_time)
+        f.write("Port range scanned %s to %s.\n" % (str(start_port), str(end_port)))
+        f_final = ', '.join(str(e) for e in counting_open)
+        f.write('Open ports reported: %s\n' % f_final)
+        if counting_open:
+            f.write("Port Services Identified\n")
+            for i in sorted(counting_open):
+                service = get_service(i)
+                if not service:
+                    service = "Unknown service"
+                f.write("\t%s : %s\n" % (i, service))
+        else:
+            f.write("No open ports\n.")
+        f.close()
+
+
+# After the open ports have been port and are awaiting saving this menu appears and prompts the user to select one of
+# the following options, which in turn call out to the above functions for execution.
+    save_result = input("Save to:\n"
+                      "\t1. File\n"
+                      "\t2. HTML\n"
+                      "\t3. Both\n"
+                      "\t4. Menu\n")
+    if save_result == '1' or save_result  == '1.' or save_result == 'File' or save_result == 'file' or save_result == '1. file' or save_result == '1. File':
+        results()
+        main_menu()
+    elif save_result == '2' or save_result == '2.' or save_result == 'HTML' or save_result == 'html' or save_result == '2. HTML' or save_result == '2. html':
+        css_style()
+        htmlsave()
+        main_menu()
+    elif save_result == '3' or save_result == '3.' or save_result == 'Both' or save_result == 'both' or save_result == '3. Both' or save_result=='3. both':
+        results()
+        css_style()
+        htmlsave()
+        main_menu()
+    elif save_result=='4' or save_result=='4.' or save_result=='Menu' or save_result=='menu' or save_result=='4. menu' or save_result=='4. Menu':
+        main_menu()
+    else:
+        print('Looks like an invalid entry, returning to menu, results not retained.')
+        main_menu()
+
+
+# This function is called when the user selects that they would like more information on the development of the program.
+def helpAbout():
+    print('''
+    
+    
+    Thank you for taking the time to review my program.
+    Horvath Port-a-palooza, is a project for my class. 
+    We were asked to create a program which combined a network functionality 
+    along with the ability to save to the disk. I was able to create this
+    program after many weeks searching the internet, and building upon the
+    lessons each week in class. 
+    
+    ************
+    As a port scanner this program was created with the best intentions. Any
+    malicious use of this program to rattle the windows and shake the doors 
+    of domains / devices / networks which you do not own may call for legal action
+    by the dearly targeted. When used appropriately on a network it will 
+    provide a great starting point for discovering open ports of attached devices. 
+    ************
+    
+    I hope you enjoy and feel free to submit comments to make this a better program.
+    I am always looking to learn and hope we can ride the rainbow of eduction together
+    into the everlasting sunset.
+    
+    
+    ''')
+
+
+
+menu_oneresults = ''
+menu_actions = {}
+
+
+# Main menu
+def main_menu():
+
+    print("\nWelcome to Ian Horvath's Port-a-palooza!\n")
+    print("Select to start:")
+    print("1. One host & all ports")
+    print("2. One host & port range")
+    print("3. About & Help")
+    print("Quit")
+    choice = input("\nLet's start: ")
+    exec_menu(choice)
+    return
+
+
+# Execute menu
+def exec_menu(choice):
+    ch = choice
+    if ch == '':
+        menu_actions['main_menu']()
+    else:
+        try:
+            menu_actions[ch]()
+        except KeyError:
+            print("Invalid selection, please try again.\n")
+            menu_actions['main_menu']()
+    return
+
+
+# Menu #1 One host / all ports scan
+def menu1():
+    print("One host & all ports\n")
+    basic_scan()
+    return
+
+
+# Menu #2 One host / select port range scan
+def menu2():
+    print("One host & select port range scan\n")
+    customScan()
+    return
+
+
+# Menu #3 Help & About
+def menu3():
+    print("Help & About")
+    helpAbout()
+    main_menu()
+    return
+
+
+# Back to main menu
+def back():
+    menu_actions['main_menu']()
+
+
+# Exit program
+def exit():
+    sys.exit()
+
+
+# Menu definition
+menu_actions = {
+    'main_menu': main_menu,
+    '1': menu1,
+    '2': menu2,
+    '3': menu3,
+    '9': back,
+    'back': back,
+    'Back': back,
+    '0': exit,
+    'exit': exit,
+    'Exit': exit,
+    'Quit': exit,
+    'quit': exit,
+}
+
+
+# Main Program
+if __name__ == "__main__":
+    main_menu()
+
